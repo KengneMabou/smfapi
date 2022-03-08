@@ -365,7 +365,7 @@ class SmfRestClient
     public function register_member($regOptions = array())
     {
         return $this->call_method("register/member",
-            array('regOptions' => serialize($regOptions),
+            array('regOptions' => json_encode($regOptions),
             )
         );
     }

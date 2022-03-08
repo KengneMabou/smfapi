@@ -249,7 +249,7 @@ class SmfRestServer
     {
         $saveFile = dirname(__FILE__) . '/smfapi_settings.txt';
         if (file_exists($saveFile)) {
-            $settings_path = base64_decode(file_get_contents($saveFile));
+            $settings_path = file_get_contents($saveFile);
         } else {
             try {
                 $this->loadApi();
@@ -260,9 +260,10 @@ class SmfRestServer
         }
 
         $ssiScript = str_replace('Settings.php', 'SSI.php', $settings_path);
-
+        $ssiScript = str_replace(array("\n", "\r"), '', $ssiScript);
+        
         //load the SSI file
-        if (file_exists($ssiScript)) {
+        if (file_exists("$ssiScript")) {
             require_once "$ssiScript";
         } else {
             throw new \Exception('SSI file not found');
@@ -394,9 +395,11 @@ class SmfRestServer
         global $sourcedir;
         require_once($sourcedir . '/Subs-Post.php');
 
-        $this->msgOptions = unserialize($this->msgOptions);
-        $this->topicOptions = unserialize($this->topicOptions);
-        $this->posterOptions = unserialize($this->posterOptions);
+        //var_dump($this->msgOptions);
+
+        $this->msgOptions = json_decode($this->msgOptions, true);//json_decode($this->msgOptions, true);
+        $this->topicOptions = json_decode($this->topicOptions, true);
+        $this->posterOptions = json_decode($this->posterOptions, true);
         
         if (!isset($this->topicOptions['board']) || !isset($this->msgOptions['subject']) || !isset($this->msgOptions['body'])) {
            $this->data = 'false';
@@ -567,7 +570,7 @@ class SmfRestServer
             throw new \Exception($e->getMessage());
         }
 
-        $this->regOptions = unserialize($this->regOptions);
+        $this->regOptions = json_decode($this->regOptions, true);
 
         $this->data = smfapi_registerMember($this->regOptions);
     }
@@ -892,6 +895,17 @@ class SmfRestServer
         } else {
             $this->data = ssi_topBoards($this->num_top, $this->output_method);
         }
+    }
+
+    protected function show_allBoards()
+    {
+        try {
+            $this->loadApi();
+        } catch (Exception $e) {
+            throw new \Exception($e->getMessage());
+        }
+
+        $this->data = smfapi_showAllBoards();
     }
     
     /**

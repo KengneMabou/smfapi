@@ -911,8 +911,7 @@ function smfapi_authenticate($username='', $password='', $encrypted=true)
 
     // load the data up!
     $request = $smcFunc['db_query']('', '
-        SELECT passwd, id_member, id_group, lngfile, is_activated, email_address, additional_groups, member_name, password_salt,
-            openid_uri, passwd_flood
+        SELECT passwd, id_member, id_group, lngfile, is_activated, email_address, additional_groups, member_name, password_salt, passwd_flood
         FROM {db_prefix}members
         WHERE ' . ($smcFunc['db_case_sensitive'] ? 'LOWER(member_name) = LOWER({string:user_name})' : 'member_name = {string:user_name}') . '
         LIMIT 1',
@@ -928,21 +927,22 @@ function smfapi_authenticate($username='', $password='', $encrypted=true)
     $user_settings = $smcFunc['db_fetch_assoc']($request);
     $smcFunc['db_free_result']($request);
 
-    if (40 != strlen($user_settings['passwd'])) {
+    if (60 != strlen($user_settings['passwd'])) {
         // invalid hash in the db
         return false;
     }
 
     // if it's not encrypted, do it now
     if (!$encrypted) {
-        $sha_passwd = sha1(strtolower($user_settings['member_name'])
-                      . smfapi_unHtmlspecialchars($password));
+        //$sha_passwd = sha1(strtolower($user_settings['member_name'])
+        //              . smfapi_unHtmlspecialchars($password));
+        $sha_passwd = password_hash(strtolower($user_settings['member_name']) . $password, PASSWORD_BCRYPT, array('cost' => 10,));
     } else {
         $sha_passwd = $password;
     }
 
     // if they match the password/hash is correct
-    if ($user_settings['passwd'] == $sha_passwd) {
+    if (password_verify($smcFunc['strtolower']($username) . $password, $user_settings['passwd'])) {
         return true;
     } else {
         // try other hashing schemes
@@ -1434,6 +1434,46 @@ function smfapi_deleteMembers($users)
 }
 
 /**
+ * Get all the boards
+ *
+ * Get all the boards of SMF
+ *
+ * @param  
+ * @return array to all the boards
+ * @since  0.1.3
+ */
+function smfapi_showAllBoards()
+{
+    global $txt, $scripturl, $user_info, $modSettings, $smcFunc;
+
+	// Find all boards.
+	$request = $smcFunc['db_query']('', '
+		SELECT
+			b.name, b.num_topics, b.num_posts, b.id_board,' . (!$user_info['is_guest'] ? ' 1 AS is_read' : '
+			(COALESCE(lb.id_msg, 0) >= b.id_last_msg) AS is_read') . '
+		FROM {db_prefix}boards AS b
+			LEFT JOIN {db_prefix}log_boards AS lb ON (lb.id_board = b.id_board AND lb.id_member = {int:current_member})
+		ORDER BY b.num_posts DESC',
+		array(
+			'current_member' => $user_info['id'],
+		)
+	);
+	$boards = array();
+	while ($row = $smcFunc['db_fetch_assoc']($request))
+		$boards[] = array(
+			'id' => $row['id_board'],
+			'num_posts' => $row['num_posts'],
+			'num_topics' => $row['num_topics'],
+			'name' => $row['name'],
+			'new' => empty($row['is_read']),
+			'href' => $scripturl . '?board=' . $row['id_board'] . '.0',
+			'link' => '<a href="' . $scripturl . '?board=' . $row['id_board'] . '.0">' . $row['name'] . '</a>'
+		);
+	$smcFunc['db_free_result']($request);
+	return $boards;
+}
+
+/**
  * Register a member
  *
  * Register a new member with SMF
@@ -1509,20 +1549,13 @@ function smfapi_registerMember($regOptions)
         'validation_code' => $validation_code,
         'real_name' => isset($regOptions['real_name'])? $regOptions['real_name']:$regOptions['member_name'],
         'personal_text' => $modSettings['default_personal_text'],
-        'pm_email_notify' => 1,
         'id_theme' => 0,
         'id_post_group' => 4,
         'lngfile' => isset($regOptions['lngfile'])? $regOptions['lngfile']:'',
         'buddy_list' => '',
         'pm_ignore_list' => '',
-        'message_labels' => '',
         'website_title' => isset($regOptions['website_title'])? $regOptions['website_title']:'',
         'website_url' => isset($regOptions['website_url'])? $regOptions['website_url']:'',
-        'location' => isset($regOptions['location'])? $regOptions['location']:'',
-        'icq' => isset($regOptions['icq'])? $regOptions['icq']:'',
-        'aim' => isset($regOptions['aim'])? $regOptions['aim']:'',
-        'yim' => isset($regOptions['yim'])? $regOptions['yim']:'',
-        'msn' => isset($regOptions['msn'])? $regOptions['msn']:'',
         'time_format' => isset($regOptions['time_format'])? $regOptions['time_format']:'',
         'signature' => isset($regOptions['signature'])? $regOptions['signature']:'',
         'avatar' => isset($regOptions['avatar'])? $regOptions['avatar']:'',
@@ -1532,7 +1565,6 @@ function smfapi_registerMember($regOptions)
         'additional_groups' => '',
         'ignore_boards' => '',
         'smiley_set' => '',
-        'openid_uri' => isset($regOptions['openid_uri'])? $regOptions['openid_uri']:'',
     );
 
     // maybe it can be activated right away?
