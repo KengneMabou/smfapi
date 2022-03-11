@@ -177,13 +177,15 @@ class SmfRestServer
      */
     protected function getRoute()
     {
-        $cwd   = getcwd();
-        $cwd   = str_replace("\\", '/', $cwd);
-        $cwd   = str_replace($_SERVER['DOCUMENT_ROOT'], '', $cwd);
-        $route = str_replace($cwd, '', $_SERVER['REQUEST_URI']);
-        $route = trim($route, '/');
+
+        if (!isset($_GET["endpoint"])) {
+            $this->data = false;
+            $this->error = "No endpoint parameter";
+        }
         
-        $this->route = $route;
+        //$route = $_GET["endpoint"];
+        
+        $this->route = $_GET["endpoint"];
 
         return $this;
     }
